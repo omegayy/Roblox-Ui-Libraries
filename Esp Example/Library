@@ -1,5 +1,4 @@
--- Spectre.cc | Standalone ESP Library (Optimized)
--- Usage: getgenv().esp_flags = { ... }; loadstring(game:HttpGet("..."))()
+
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -20,24 +19,28 @@ local math_min = math.min
 local math_abs = math.abs
 local table_insert = table.insert
 
+-- Environment Fallbacks
+local gethui = gethui or function() return game:GetService("CoreGui") end
+local Drawing_new = (Drawing and Drawing.new) or function() return { Visible = false, Remove = function() end } end
+
 -- Global Defaults
 getgenv().esp_flags = getgenv().esp_flags or {
     ["Enabled"] = true,
     ["Names"] = true, 
-    ["Name_Color"] = { Color = rgb(255, 255, 255) },
+    ["Name_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
     ["Boxes"] = true,
     ["Box_Type"] = "Corner",
-    ["Box_Color"] = { Color = rgb(255, 255, 255) },
+    ["Box_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
     ["Healthbar"] = true, 
-    ["Health_High"] = { Color = rgb(0, 255, 0) },
-    ["Health_Low"] = { Color = rgb(255, 0, 0) },
+    ["Health_High"] = { Color = rgb(0, 255, 0), Transparency = 0 },
+    ["Health_Low"] = { Color = rgb(255, 0, 0), Transparency = 0 },
     ["Distance"] = true,
     ["Weapon"] = true,
-    ["Distance_Color"] = { Color = rgb(255, 255, 255) },
-    ["Weapon_Color"] = { Color = rgb(255, 255, 255) },
+    ["Distance_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
+    ["Weapon_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
     ["Highlight"] = false,
-    ["Highlight_FillColor"] = { Color = rgb(255, 0, 0) },
-    ["Highlight_OutlineColor"] = { Color = rgb(255, 255, 255) }
+    ["Highlight_FillColor"] = { Color = rgb(255, 0, 0), Transparency = 0.5 },
+    ["Highlight_OutlineColor"] = { Color = rgb(255, 255, 255), Transparency = 0 }
 }
 
 -- Font Registration
@@ -71,7 +74,12 @@ local fonts = {}; do
     }
 end
 
-local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cache = Instance.new("ScreenGui", gethui()), connections = {}}; do 
+local esp = { 
+    players = {}, 
+    screengui = Instance.new("ScreenGui", gethui()), 
+    cache = Instance.new("ScreenGui", gethui()), 
+    connections = {}
+}; do 
     esp.screengui.IgnoreGuiInset = true
     esp.screengui.Name = "\0"
     esp.cache.Enabled = false
@@ -114,7 +122,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
     end
 
     function esp:create_object( player )
-        esp[ player.Name ] = { 
+        esp.players[ player.Name ] = { 
             objects = { }, 
             info = { character = nil, humanoid = nil }, 
             drawings = { },
@@ -127,7 +135,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                 hp = -1
             }
         } 
-        local data = esp[ player.Name ] 
+        local data = esp.players[ player.Name ] 
         local objects = data.objects; do
             objects[ "holder" ] = esp:create( "Frame" , {
                 Parent = esp.screengui;
@@ -258,11 +266,10 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
             -- 3D Box Lines
             data.box3d = {}
             for i = 1, 12 do
-                local line = Drawing.new("Line")
-                line.Color = rgb(255, 255, 255)
-                line.Thickness = 1
-                line.Visible = false
-                data.box3d[i] = line
+                data.box3d[i] = Drawing_new("Line")
+                data.box3d[i].Color = rgb(255, 255, 255)
+                data.box3d[i].Thickness = 1
+                data.box3d[i].Visible = false
             end
 
             -- Highlight (Chams)
@@ -285,8 +292,8 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                     objects[ "healthbar" ].Size = dim2(1, -2, multiplier, -2)
                     objects[ "healthbar" ].Position = dim2(0, 1, 1 - multiplier, 1)
                     objects[ "healthbar" ].BackgroundColor3 = color
-                    local lowT = flags["Health_Low"].Transparency
-                    local highT = flags["Health_High"].Transparency
+                    local lowT = flags["Health_Low"].Transparency or 0
+                    local highT = flags["Health_High"].Transparency or 0
                     objects[ "healthbar" ].BackgroundTransparency = lowT + (highT - lowT) * multiplier
                 end
             end
@@ -332,12 +339,12 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
     end
 
     function esp:remove_object(player)
-        local holder = esp[player.Name]
+        local holder = esp.players[player.Name]
         if not holder then return end 
         if holder.box3d then for _, line in ipairs(holder.box3d) do line:Remove() end end
         if holder.objects["highlight"] then holder.objects["highlight"]:Destroy() end
         holder.objects[ "holder" ]:Destroy() 
-        esp[player.Name] = nil
+        esp.players[player.Name] = nil
     end
     
     function esp.refresh_elements( )
@@ -351,14 +358,14 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
 
         for _,v in ipairs(Players:GetPlayers()) do 
             if v == LocalPlayer then continue end
-            local path = esp[v.Name]
+            local path = esp.players[v.Name]
             local objects = path and path.objects
             if not objects then continue end
 
             objects.holder.Parent = enabled and esp.screengui or esp.cache
             objects[ "name" ].Parent = flags["Names"] and objects["holder"] or esp.cache
             objects[ "name" ].TextColor3 = flags["Name_Color"].Color
-            objects[ "name" ].TextTransparency = flags["Name_Color"].Transparency
+            objects[ "name" ].TextTransparency = flags["Name_Color"].Transparency or 0
             
             if box_enabled and not is_3d then 
                 objects[ "corners" ].Parent = (is_corner and objects["holder"]) or esp.cache
@@ -371,7 +378,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
             end 
 
             local boxColor = flags["Box_Color"].Color
-            local boxTransparency = flags["Box_Color"].Transparency
+            local boxTransparency = flags["Box_Color"].Transparency or 0
             objects[ "box_color" ].Color = boxColor
             objects[ "box_color" ].Transparency = boxTransparency
             
@@ -423,15 +430,15 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
 
             objects["highlight"].Enabled = highlight_enabled
             objects["highlight"].FillColor = flags["Highlight_FillColor"].Color
-            objects["highlight"].FillTransparency = flags["Highlight_FillColor"].Transparency
+            objects["highlight"].FillTransparency = flags["Highlight_FillColor"].Transparency or 0.5
             objects["highlight"].OutlineColor = flags["Highlight_OutlineColor"].Color
-            objects["highlight"].OutlineTransparency = flags["Highlight_OutlineColor"].Transparency
+            objects["highlight"].OutlineTransparency = flags["Highlight_OutlineColor"].Transparency or 0
 
             objects[ "healthbar_holder" ].Parent = flags[ "Healthbar" ] and objects[ "holder" ] or esp.cache
             objects[ "weapon" ].TextColor3 = flags["Weapon_Color"].Color
-            objects[ "weapon" ].TextTransparency = flags["Weapon_Color"].Transparency
+            objects[ "weapon" ].TextTransparency = flags["Weapon_Color"].Transparency or 0
             objects[ "distance" ].TextColor3 = flags["Distance_Color"].Color
-            objects[ "distance" ].TextTransparency = flags["Distance_Color"].Transparency
+            objects[ "distance" ].TextTransparency = flags["Distance_Color"].Transparency or 0
         end
     end
 
@@ -453,7 +460,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
         local showHighlight = flags["Highlight"]
 
         for _, player in ipairs(Players:GetPlayers()) do 
-            local data = esp[player.Name]
+            local data = esp.players[player.Name]
             if not data then continue end 
             local info = data.info
             local character = info.character
