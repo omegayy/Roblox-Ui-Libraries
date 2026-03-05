@@ -285,6 +285,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                     objects[ "healthbar" ].Size = dim2(1, -2, multiplier, -2)
                     objects[ "healthbar" ].Position = dim2(0, 1, 1 - multiplier, 1)
                     objects[ "healthbar" ].BackgroundColor3 = color
+                    objects[ "healthbar" ].BackgroundTransparency = flags["Health_Low"].Transparency:Lerp(flags["Health_High"].Transparency, multiplier)
                 end
             end
 
@@ -355,6 +356,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
             objects.holder.Parent = enabled and esp.screengui or esp.cache
             objects[ "name" ].Parent = flags["Names"] and objects["holder"] or esp.cache
             objects[ "name" ].TextColor3 = flags["Name_Color"].Color
+            objects[ "name" ].TextTransparency = flags["Name_Color"].Transparency
             
             if box_enabled and not is_3d then 
                 objects[ "corners" ].Parent = (is_corner and objects["holder"]) or esp.cache
@@ -367,7 +369,9 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
             end 
 
             local boxColor = flags["Box_Color"].Color
+            local boxTransparency = flags["Box_Color"].Transparency
             objects[ "box_color" ].Color = boxColor
+            objects[ "box_color" ].Transparency = boxTransparency
             
             if is_corner then
                 local corner_size_w = dim2(0.4, 0, 0, 3)
@@ -403,22 +407,29 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
 
                 for i = 1, 8 do
                     objects["corner_inner_"..i].BackgroundColor3 = boxColor
+                    objects["corner_inner_"..i].BackgroundTransparency = boxTransparency
+                    objects["corner_"..i].BackgroundTransparency = boxTransparency
                 end
             end
             
             if path.box3d then 
                 for _, line in ipairs(path.box3d) do 
                     line.Color = boxColor 
+                    line.Transparency = boxTransparency
                 end 
             end
 
             objects["highlight"].Enabled = highlight_enabled
             objects["highlight"].FillColor = flags["Highlight_FillColor"].Color
+            objects["highlight"].FillTransparency = flags["Highlight_FillColor"].Transparency
             objects["highlight"].OutlineColor = flags["Highlight_OutlineColor"].Color
+            objects["highlight"].OutlineTransparency = flags["Highlight_OutlineColor"].Transparency
 
             objects[ "healthbar_holder" ].Parent = flags[ "Healthbar" ] and objects[ "holder" ] or esp.cache
             objects[ "weapon" ].TextColor3 = flags["Weapon_Color"].Color
+            objects[ "weapon" ].TextTransparency = flags["Weapon_Color"].Transparency
             objects[ "distance" ].TextColor3 = flags["Distance_Color"].Color
+            objects[ "distance" ].TextTransparency = flags["Distance_Color"].Transparency
         end
     end
 
