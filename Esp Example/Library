@@ -1,6 +1,3 @@
--- Spectre.cc | Standalone ESP Library (Optimized)
--- Usage: getgenv().esp_flags = { ... }; loadstring(game:HttpGet("..."))()
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
