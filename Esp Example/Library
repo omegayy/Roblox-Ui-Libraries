@@ -1,3 +1,6 @@
+-- Spectre.cc | Standalone ESP Library (Optimized)
+-- Usage: getgenv().esp_flags = { ... }; loadstring(game:HttpGet("..."))()
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local HttpService = game:GetService("HttpService")
@@ -282,7 +285,9 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                     objects[ "healthbar" ].Size = dim2(1, -2, multiplier, -2)
                     objects[ "healthbar" ].Position = dim2(0, 1, 1 - multiplier, 1)
                     objects[ "healthbar" ].BackgroundColor3 = color
-                    objects[ "healthbar" ].BackgroundTransparency = flags["Health_Low"].Transparency:Lerp(flags["Health_High"].Transparency, multiplier)
+                    local lowT = flags["Health_Low"].Transparency
+                    local highT = flags["Health_High"].Transparency
+                    objects[ "healthbar" ].BackgroundTransparency = lowT + (highT - lowT) * multiplier
                 end
             end
 
