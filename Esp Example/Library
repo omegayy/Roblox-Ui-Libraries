@@ -88,17 +88,18 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
         
         local torsoPos = torso.Position
         local torsoUp = torso.CFrame.UpVector
-        local ViewportTop = torsoPos + (torsoUp * 1.8)
-        local ViewportBottom = torsoPos - (torsoUp * 2.5)
+        local ViewportTop = torsoPos + (torsoUp * 2.2)
+        local ViewportBottom = torsoPos - (torsoUp * 3.0)
         local Distance = (torsoPos - Camera.CFrame.p).Magnitude
 
         local Top, TopIsRendered = esp:get_screen_pos(ViewportTop)
         local Bottom, BottomIsRendered = esp:get_screen_pos(ViewportBottom)
 
-        local Width = math_max(math_round(math_abs(Top.X - Bottom.X)), 3)
-        local Height = math_max(math_round(math_max(math_abs(Bottom.Y - Top.Y), Width / 2)), 3)
-        local BoxSize = vec2(math_round(math_max(Height / 1.5, Width)), Height)
-        local BoxPosition = vec2(math_round(Top.X * 0.5 + Bottom.X * 0.5 - BoxSize.X * 0.5), math_round(math_min(Top.Y, Bottom.Y)))
+        local Height = math_abs(Top.Y - Bottom.Y)
+        local Width = Height / 1.6
+        
+        local BoxSize = vec2(math_round(Width), math_round(Height))
+        local BoxPosition = vec2(math_round(Top.X - Width / 2), math_round(math_min(Top.Y, Bottom.Y)))
         
         local on_screen = TopIsRendered or BottomIsRendered
         return BoxSize, BoxPosition, on_screen, Distance
@@ -305,6 +306,7 @@ local esp = { players = {}, screengui = Instance.new("ScreenGui", gethui()), cac
                 data.info.humanoid = humanoid
                 data.info.rootpart = rootpart
 
+                humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
                 objects["highlight"].Adornee = character
                 objects["highlight"].Parent = character
 
