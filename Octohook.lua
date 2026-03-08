@@ -6686,11 +6686,16 @@
             end
 
             function Cfg.AddBox(props) 
+                local Config = {
+                    Name = props.Name or "I dont know";
+                    Enabled = props.Enabled or false; 
+                    Position = props.Position or "Left"; 
+                    Flag = Cfg.Name .. " " .. props.Name;
+                    Colors = props.Colors or 2; 
                     Prefix = props.Prefix or "Box";
 
                     Items = {};
                     Objects = {};
-                    Holder;
                     Width = 3;
                     Tweening = false;
                 }
