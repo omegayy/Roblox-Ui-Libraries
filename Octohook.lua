@@ -2267,7 +2267,7 @@
                         PaddingLeft = dim(0, 1)
                     });
 
-                    Items.PageHolder = Library:Create( "Frame" , {
+                    Items.PageHolderFrame = Library:Create( "Frame" , {
                         Parent = Items.BackgroundSecond;
                         Size = dim2(1, -26, 1, -71);
                         Name = "\0";
@@ -2276,10 +2276,10 @@
                         ZIndex = 2;
                         BorderSizePixel = 0;
                         BackgroundColor3 = themes.preset.outline
-                    });	Library:Themify(Items.PageHolder, "outline", "BackgroundColor3")
+                    });	Library:Themify(Items.PageHolderFrame, "outline", "BackgroundColor3")
 
                     Items.InlineThird = Library:Create( "Frame" , {
-                        Parent = Items.PageHolder;
+                        Parent = Items.PageHolderFrame;
                         Name = "\0";
                         Position = dim2(0, 1, 0, 1);
                         BorderColor3 = rgb(0, 0, 0);
@@ -2292,7 +2292,7 @@
                         Parent = Items.InlineThird;
                         Name = "\0";
                         Position = dim2(0, 1, 0, 1);
-                        BorderColor3 = rgb(0, 0, 0);
+                        BorderColor3 = rgb(0,-0, 0);
                         Size = dim2(1, -2, 1, -2);
                         BorderSizePixel = 0;
                         BackgroundColor3 = rgb(28, 28, 33);
@@ -2302,7 +2302,7 @@
                         CanvasSize = dim2(0, 0, 0, 0);
                         ScrollingDirection = Enum.ScrollingDirection.Y;
                         ScrollBarImageTransparency = 0;
-                        BackgroundTransparency = 1; -- Transparency 1 so it doesn't overlap Page's visuals
+                        BackgroundTransparency = 1;
                     }); Library:Themify(Items.PageHolder, "accent", "ScrollBarImageColor3")
 
                     Items.Title = Library:Create( "TextLabel" , {
@@ -5001,7 +5001,7 @@
                 if instance:IsA("TextLabel") then
                     Library:Tween(instance, {TextTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
                 elseif instance:IsA("Frame") then
-                    Library:Tween(instance, {BackgroundTransparency = instance.Transparency and 0 and is_fading and 1 or 0}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
+                    Library:Tween(instance, {BackgroundTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
                 end
             end
         end 
