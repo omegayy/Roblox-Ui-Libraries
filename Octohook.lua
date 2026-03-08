@@ -2487,11 +2487,11 @@
                         Visible = false;
                         BackgroundTransparency = 1;
                         Position = dim2(0, 6, 0, 6);
-                        Size = dim2(1, -12, 0, 0); -- Height MUST be 0 for AutomaticSize.Y to work with scrolling
+                        Size = dim2(1, -12, 1, -12); -- Height 1.0 ensures it fills visible area even if empty
                         ZIndex = 2;
                         BorderSizePixel = 0;
                         BackgroundColor3 = rgb(255, 255, 255);
-                        AutomaticSize = Enum.AutomaticSize.Y; -- Ensures global scrolling works
+                        AutomaticSize = Enum.AutomaticSize.Y; -- Allows it to grow beyond viewport for scrolling
                     });
 
                     Library:Create( "UIListLayout" , {
@@ -2588,10 +2588,10 @@
                     BackgroundTransparency = 1;
                     Name = "\0";
                     BorderColor3 = rgb(0, 0, 0);
-                    Size = dim2(0, 100, 0, 0); -- Height 0 to allow AutomaticSize.Y
+                    Size = dim2(0, 100, 1, 0); -- Height 1.0 ensures column fills page
                     BorderSizePixel = 0;
                     BackgroundColor3 = rgb(255, 255, 255);
-                    AutomaticSize = Enum.AutomaticSize.Y;
+                    AutomaticSize = Enum.AutomaticSize.Y; -- Grows with sections
                 });
 
                 Library:Create( "UIListLayout" , {
@@ -3998,7 +3998,7 @@
                 Focused = false;
             }
 
-            Flags[Cfg.Flag] = Cfg.default
+            Flags[Cfg.Flag] = Cfg.Default
 
             local Items = Cfg.Items; do 
                 Items.Textbox = Library:Create( "TextButton" , {
@@ -5058,7 +5058,7 @@
                     Parent = Items.ButtonHolder;
                     Padding = dim(0, 5);
                     SortOrder = Enum.SortOrder.LayoutOrder;
-                    FillDirection = Enum.FillDirection.Horizontal
+                    FillDirection = Enum.FillDirection.Vertical
                 }); 
 
                 Items.Notification = Library:Create( "Frame" , {
@@ -5140,6 +5140,50 @@
                     PaddingLeft = dim(0, 9)
                 });
 
+                Items.Content = Library:Create( "TextLabel" , {
+                    FontFace = Fonts[themes.preset.font];
+                    Parent = Items.Notification;
+                    TextColor3 = rgb(200, 200, 200);
+                    TextStrokeColor3 = rgb(255, 255, 255);
+                    Text = "";
+                    Name = "\0";
+                    TextTransparency = 1;
+                    AutomaticSize = Enum.AutomaticSize.Y;
+                    Size = dim2(0, 250, 0, 0);
+                    TextWrapped = true;
+                    AnchorPoint = vec2(0, 0);
+                    BorderSizePixel = 0;
+                    BackgroundTransparency = 1;
+                    Position = dim2(0, 0, 0, 0); -- Will be adjusted by layout or manually
+                    BorderColor3 = rgb(0, 0, 0);
+                    ZIndex = 3;
+                    TextSize = 13;
+                    BackgroundColor3 = rgb(255, 255, 255);
+                    TextXAlignment = Enum.TextXAlignment.Left;
+                });
+
+                Library:Create( "UIStroke" , {
+                    Parent = Items.Content;
+                    LineJoinMode = Enum.LineJoinMode.Miter
+                });
+
+                Library:Create( "UIPadding" , {
+                    Parent = Items.Content;
+                    PaddingRight = dim(0, 10);
+                    PaddingLeft = dim(0, 10);
+                    PaddingBottom = dim(0, 5);
+                });
+
+                Library:Create("UIListLayout", {
+                    Parent = Items.Notification,
+                    Padding = dim(0, 2),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    FillDirection = Enum.FillDirection.Vertical
+                })
+
+                Items.Title.LayoutOrder = 1
+                Items.Content.LayoutOrder = 2
+
                 Items.Inline = Library:Create( "Frame" , {
                     Parent = Items.Notification;
                     Name = "\0";
@@ -5173,6 +5217,15 @@
             }, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
 
             Items.Holder.Position = dim_offset(20, Offset)
+
+            function Cfg.Set(text)
+                Items.Content.Text = tostring(text)
+                Items.Content.Visible = (text ~= "")
+                
+                -- Update layout
+                task.wait()
+                Library:ReorderNotifications()
+            end
 
             if Cfg.Lifetime then 
                 task.spawn(function() 
@@ -6633,12 +6686,7 @@
             end
 
             function Cfg.AddBox(props) 
-                local Config = {
-                    Name = props.Name or "I dont know";
-                    Enabled = props.Enabled or false; 
-                    Position = props.Position or "Left"; 
-                    Flag = Cfg.Name .. " " .. props.Name;
-                    Colors = props.Colors or 2; 
+                    Prefix = props.Prefix or "Box";
 
                     Items = {};
                     Objects = {};
@@ -6993,7 +7041,7 @@
                                 task.wait()
                                 Elements.BoxHolder.Size = dim2(1, -2, 1, -2) -- what the fuck
 
-                                Options.BoxType = option
+                                Options[Config.Prefix .. "_BoxType"] = option
                             end
                         })
 
@@ -7161,7 +7209,7 @@
 
                     Cfg.VisualizedModel:SetPrimaryPartCFrame(Cfg.VisualizedModel.PrimaryPart.CFrame)
 
-                    Options.Boxes = Enabled
+                    Options[Config.Prefix] = Enabled
 
                     if Enabled then 
                         Elements.Options.Type.Set(Flags[Config.Flag .. "_CORNERS_ENABLED"])
@@ -7393,8 +7441,7 @@
 
             if Cfg.Chams then 
                 local Toggle = self.Section:Toggle({Name = Cfg.Name .. " Chams", Callback = function(bool)
-                    Options["ChamsEnabled"] = bool
-                    print("I am real", bool)
+                    Options[Cfg.Name .. "_Chams"] = bool
                 end, Flag = Cfg.Name .. "_CHAMS"})
 
                 Toggle:Colorpicker({Name = "Fill", Color = rgb(255, 255, 255), Transparency = 1, Callback = function(color, alpha)
