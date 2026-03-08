@@ -1,544 +1,408 @@
--- Spectre.cc | Standalone ESP Library (Optimized)
+-- esp.lua
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
 
--- Localizing Globals for Speed
-local vec2 = Vector2.new
-local vec3 = Vector3.new
-local cfr = CFrame.new
-local dim2 = UDim2.new
-local dim_offset = UDim2.fromOffset
-local rgb = Color3.fromRGB
-local math_round = math.round
-local math_max = math.max
-local math_min = math.min
-local math_abs = math.abs
-local math_clamp = math.clamp
-local table_insert = table.insert
+local localPlayer = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
--- Environment Fallbacks
-local gethui = gethui or function() return game:GetService("CoreGui") end
-local Drawing_new = (Drawing and Drawing.new) or function() return { Visible = false, Remove = function() end } end
-local isfile = isfile or function() return false end
-local writefile = writefile or function() end
-local getcustomasset = getcustomasset or function() return "" end
-local getgenv = getgenv or function() return {} end
+local cache = {}
 
--- Global Defaults
-getgenv().esp_flags = getgenv().esp_flags or {
-    ["Enabled"] = true,
-    ["Names"] = true, 
-    ["Name_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
-    ["Boxes"] = true,
-    ["Box_Type"] = "Corner",
-    ["Box_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
-    ["Healthbar"] = true, 
-    ["Health_High"] = { Color = rgb(0, 255, 0), Transparency = 0 },
-    ["Health_Low"] = { Color = rgb(255, 0, 0), Transparency = 0 },
-    ["Distance"] = true,
-    ["Weapon"] = true,
-    ["Distance_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
-    ["Weapon_Color"] = { Color = rgb(255, 255, 255), Transparency = 0 },
-    ["Highlight"] = false,
-    ["Highlight_FillColor"] = { Color = rgb(255, 0, 0), Transparency = 0.5 },
-    ["Highlight_OutlineColor"] = { Color = rgb(255, 255, 255), Transparency = 0 }
+local bones = {
+    {"Head","UpperTorso"},
+    {"UpperTorso","RightUpperArm"},
+    {"RightUpperArm","RightLowerArm"},
+    {"RightLowerArm","RightHand"},
+    {"UpperTorso","LeftUpperArm"},
+    {"LeftUpperArm","LeftLowerArm"},
+    {"LeftLowerArm","LeftHand"},
+    {"UpperTorso","LowerTorso"},
+    {"LowerTorso","LeftUpperLeg"},
+    {"LeftUpperLeg","LeftLowerLeg"},
+    {"LeftLowerLeg","LeftFoot"},
+    {"LowerTorso","RightUpperLeg"},
+    {"RightUpperLeg","RightLowerLeg"},
+    {"RightLowerLeg","RightFoot"}
 }
 
--- Font Registration
-local fonts = {}; do
-    local function Register_Font(Name, Weight, Style, Asset)
-        if not isfile(Asset.Id) then
-            pcall(function() writefile(Asset.Id, Asset.Font) end)
-        end
-        local Data = {
-            name = Name,
-            faces = {
-                {
-                    name = "Normal",
-                    weight = Weight,
-                    style = Style,
-                    assetId = getcustomasset(Asset.Id),
-                },
-            },
-        }
-        pcall(function() writefile(Name .. ".font", HttpService:JSONEncode(Data)) end)
-        return getcustomasset(Name .. ".font");
-    end
-    
-    local success, ProggyTiny = pcall(function()
-        return Register_Font("SpectreFont", 100, "Normal", {
-            Id = "ProggyTinyyyy.ttf",
-            Font = game:HttpGet("https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/ProggyTiny.ttf"),
-        })
-    end)
+local ESP_SETTINGS = {
 
-    fonts = {
-        main = success and Font.new(ProggyTiny, Enum.FontWeight.Regular, Enum.FontStyle.Normal) or Font.fromEnum(Enum.Font.Code);
-    }
+    BoxOutlineColor = Color3.new(0,0,0),
+    BoxColor = Color3.new(1,1,1),
+
+    NameColor = Color3.new(1,1,1),
+
+    HealthOutlineColor = Color3.new(0,0,0),
+    HealthHighColor = Color3.new(0,1,0),
+    HealthLowColor = Color3.new(1,0,0),
+
+    CharSize = Vector2.new(4,6),
+
+    Teamcheck = false,
+    WallCheck = false,
+
+    Enabled = false,
+
+    ShowBox = false,
+    BoxType = "2D",
+
+    ShowName = false,
+    ShowHealth = false,
+    ShowDistance = false,
+    ShowSkeletons = false,
+
+    ShowTracer = false,
+    TracerColor = Color3.new(1,1,1),
+    TracerThickness = 2,
+    TracerPosition = "Bottom",
+
+    SkeletonsColor = Color3.new(1,1,1),
+
+    ShowHighlight = false,
+    HighlightFillColor = Color3.new(1,0,0),
+    HighlightOutlineColor = Color3.new(1,1,1),
+    HighlightFillTransparency = 0.5,
+    HighlightOutlineTransparency = 0
+}
+
+local function create(class, properties)
+    local drawing = Drawing.new(class)
+
+    for property,value in pairs(properties) do
+        drawing[property] = value
+    end
+
+    return drawing
 end
 
-local esp = { 
-    players = {}, 
-    screengui = Instance.new("ScreenGui", gethui()), 
-    cache = Instance.new("ScreenGui", gethui()), 
-    connections = {}
-}; do 
-    esp.screengui.IgnoreGuiInset = true
-    esp.screengui.Name = "\0"
-    esp.cache.Enabled = false
+local function createEsp(player)
 
-    local WorldToViewportPoint = Camera.WorldToViewportPoint
+    local esp = {
 
-    function esp:get_screen_pos(world_position)
-        local pos, on_screen = WorldToViewportPoint(Camera, world_position)
-        return vec3(pos.X, pos.Y, pos.Z), on_screen
-    end
+        tracer = create("Line",{
+            Thickness = ESP_SETTINGS.TracerThickness,
+            Color = ESP_SETTINGS.TracerColor,
+            Transparency = 1
+        }),
 
-    function esp:box_solve(torso)
-        if not torso then return nil, nil, nil end
-        
-        local torsoPos = torso.Position
-        local Distance = (torsoPos - Camera.CFrame.Position).Magnitude
-        
-        -- Use constant vertical offsets to ignore character rotation/tilt
-        local top_world = torsoPos + vec3(0, 2.8, 0)
-        local bottom_world = torsoPos - vec3(0, 3.5, 0)
-        
-        local top_screen, top_onscreen = Camera:WorldToViewportPoint(top_world)
-        local bottom_screen, bottom_onscreen = Camera:WorldToViewportPoint(bottom_world)
-        
-        if top_screen.Z < 1 and bottom_screen.Z < 1 then
-            return vec2(0,0), vec2(0,0), false, Distance
-        end
+        boxOutline = create("Square",{
+            Color = ESP_SETTINGS.BoxOutlineColor,
+            Thickness = 3,
+            Filled = false
+        }),
 
-        local height = math_abs(top_screen.Y - bottom_screen.Y)
-        local width = height / 1.7
-        
-        local size = vec2(math_round(width), math_round(height))
-        local pos = vec2(math_round(top_screen.X - width / 2), math_round(math_min(top_screen.Y, bottom_screen.Y)))
-        
-        return size, pos, true, Distance
-    end
+        box = create("Square",{
+            Color = ESP_SETTINGS.BoxColor,
+            Thickness = 1,
+            Filled = false
+        }),
 
-    function esp:create(instance, options)
-        local ins = Instance.new(instance) 
-        for prop, value in next, options do 
-            ins[prop] = value
-        end
-        return ins 
-    end
+        name = create("Text",{
+            Color = ESP_SETTINGS.NameColor,
+            Outline = true,
+            Center = true,
+            Size = 13
+        }),
 
-    function esp:create_object( player )
-        esp.players[ player.Name ] = { 
-            objects = { }, 
-            info = { character = nil, humanoid = nil }, 
-            drawings = { },
-            last_state = { 
-                pos = vec2(0,0),
-                size = vec2(0,0),
-                visible = false,
-                distance = "",
-                weapon = "",
-                hp = -1
-            }
-        } 
-        local data = esp.players[ player.Name ] 
-        local objects = data.objects; do
-            objects[ "holder" ] = esp:create( "Frame" , {
-                Parent = esp.screengui;
-                BackgroundTransparency = 1;
-                BorderSizePixel = 0;
-                Visible = false
-            });
-            
-            objects[ "box_outline" ] = esp:create( "UIStroke" , {
-                Parent = esp.cache;
-                LineJoinMode = Enum.LineJoinMode.Miter
-            });
-            
-            objects[ "name" ] = esp:create( "TextLabel" , {
-                FontFace = fonts.main;
-                Parent = objects[ "holder" ];
-                TextColor3 = rgb(255, 255, 255);
-                Text = player.DisplayName;
-                TextStrokeTransparency = 0;
-                AnchorPoint = vec2(0, 1);
-                Size = dim2(1, 0, 0, 0);
-                BackgroundTransparency = 1;
-                Position = dim2(0, 0, 0, -5);
-                BorderSizePixel = 0;
-                AutomaticSize = Enum.AutomaticSize.Y;
-                TextSize = 9;
-            });
-            
-            objects[ "box_handler" ] = esp:create( "Frame" , {
-                Parent = esp.cache;
-                BackgroundTransparency = 1;
-                BorderSizePixel = 0;
-            });
-            
-            objects[ "box_color" ] = esp:create( "UIStroke" , {
-                Color = rgb(255, 255, 255);
-                LineJoinMode = Enum.LineJoinMode.Miter;
-                Parent = objects[ "box_handler" ]
-            });
-            
-            objects[ "outline" ] = esp:create( "Frame" , {
-                Parent = objects[ "box_handler" ];
-                BackgroundTransparency = 1;
-                Position = dim2(0, 1, 0, 1);
-                Size = dim2(1, -2, 1, -2);
-                BorderSizePixel = 0;
-            });
-            
-            esp:create( "UIStroke" , {
-                Parent = objects[ "outline" ];
-                LineJoinMode = Enum.LineJoinMode.Miter
-            });  
-            
-            objects[ "corners" ] = esp:create( "Frame" , {
-                Parent = esp.cache;
-                BackgroundTransparency = 1;
-                BorderSizePixel = 0;
-            });
+        healthOutline = create("Line",{
+            Thickness = 3,
+            Color = ESP_SETTINGS.HealthOutlineColor
+        }),
 
-            for i = 1, 8 do
-                local c = esp:create( "Frame" , {
-                    Parent = objects[ "corners" ];
-                    BorderSizePixel = 0;
-                    BackgroundColor3 = rgb(0, 0, 0)
-                })
-                local inner = esp:create( "Frame" , {
-                    Parent = c,
-                    Position = dim2(0, 1, 0, 1),
-                    Size = dim2(1, -2, 1, -2),
-                    BorderSizePixel = 0
-                })
-                objects["corner_"..i] = c
-                objects["corner_inner_"..i] = inner
-            end
+        health = create("Line",{
+            Thickness = 1
+        }),
 
-            objects[ "healthbar_holder" ] = esp:create( "Frame" , {
-                AnchorPoint = vec2(1, 0);
-                Parent = esp.cache;
-                Position = dim2(0, -5, 0, 0);
-                Size = dim2(0, 2, 1, 0);
-                BorderSizePixel = 0;
-                BackgroundColor3 = rgb(0, 0, 0)
-            });
-            
-            objects[ "healthbar" ] = esp:create( "Frame" , {
-                Parent = objects[ "healthbar_holder" ];
-                Position = dim2(0, 1, 0, 1);
-                Size = dim2(1, -2, 1, -2);
-                BorderSizePixel = 0;
-                BackgroundColor3 = rgb(255, 255, 255)
-            });
+        distance = create("Text",{
+            Color = Color3.new(1,1,1),
+            Size = 12,
+            Outline = true,
+            Center = true
+        }),
 
-            objects[ "distance" ] = esp:create( "TextLabel" , {
-                FontFace = fonts.main;
-                Text = "0st";
-                Parent = esp.cache;
-                TextStrokeTransparency = 0;
-                Size = dim2(1, 0, 0, 0);
-                BackgroundTransparency = 1;
-                Position = dim2(0, 0, 1, 3);
-                BorderSizePixel = 0;
-                AutomaticSize = Enum.AutomaticSize.Y;
-                TextSize = 9;
-            });
-
-            objects[ "weapon" ] = esp:create( "TextLabel" , {
-                FontFace = fonts.main;
-                Text = "None";
-                Parent = esp.cache;
-                TextStrokeTransparency = 0;
-                Size = dim2(1, 0, 0, 0);
-                BackgroundTransparency = 1;
-                Position = dim2(0, 0, 1, 13);
-                BorderSizePixel = 0;
-                AutomaticSize = Enum.AutomaticSize.Y;
-                TextSize = 9;
-            });
-
-            objects[ "highlight" ] = esp:create( "Highlight" , {
-                Parent = gethui();
-                Enabled = false;
-            })
-        end
-
-        local function char_added( char )
-            data.info.character = char
-            data.info.humanoid = char:WaitForChild( "Humanoid" , 5 )
-            objects[ "highlight" ].Adornee = char
-        end
-        if player.Character then char_added( player.Character ) end
-        player.CharacterAdded:Connect( char_added )
-
-        -- 3D Box Lines
-        data.box3d = {}
-        for i = 1, 12 do
-            data.box3d[i] = Drawing_new("Line")
-            data.box3d[i].Color = rgb(255, 255, 255)
-            data.box3d[i].Thickness = 1
-            data.box3d[i].Visible = false
-        end
-    end
-
-    function esp:remove_object(player)
-        local holder = esp.players[player.Name]
-        if not holder then return end 
-        if holder.box3d then for _, line in ipairs(holder.box3d) do line:Remove() end end
-        if holder.objects["highlight"] then holder.objects["highlight"]:Destroy() end
-        holder.objects[ "holder" ]:Destroy() 
-        esp.players[player.Name] = nil
-    end
-    
-    function esp.refresh_elements( )
-        local flags = getgenv().esp_flags
-        local enabled = flags["Enabled"]
-        local box_type = flags["Box_Type"]
-        local is_corner = box_type == "Corner"
-        local is_3d = box_type == "3D"
-        local box_enabled = flags["Boxes"]
-        local highlight_enabled = enabled and flags["Highlight"]
-
-        for _,v in ipairs(Players:GetPlayers()) do 
-            if v == LocalPlayer then continue end
-            local path = esp.players[v.Name]
-            local objects = path and path.objects
-            if not objects then continue end
-
-            objects.holder.Parent = enabled and esp.screengui or esp.cache
-            objects[ "name" ].Parent = flags["Names"] and objects["holder"] or esp.cache
-            objects[ "name" ].TextColor3 = flags["Name_Color"].Color
-            objects[ "name" ].TextTransparency = flags["Name_Color"].Transparency or 0
-            
-            if box_enabled and not is_3d then 
-                objects[ "corners" ].Parent = (is_corner and objects["holder"]) or esp.cache
-                objects[ "box_handler" ].Parent = (is_corner and esp.cache or objects[ "holder" ])
-                objects[ "box_outline" ].Parent = (is_corner and esp.cache or objects[ "holder" ]) 
-            else
-                objects[ "corners" ].Parent =  esp.cache
-                objects[ "box_handler" ].Parent = esp.cache
-                objects[ "box_outline" ].Parent = esp.cache
-            end 
-
-            local boxColor = flags["Box_Color"].Color
-            local boxTransparency = flags["Box_Color"].Transparency or 0
-            objects[ "box_color" ].Color = boxColor
-            objects[ "box_color" ].Transparency = boxTransparency
-            
-            if is_corner then
-                local corner_size_w = dim2(0.4, 0, 0, 2)
-                local corner_size_h = dim2(0, 2, 0.25, 0)
-                
-                objects.corner_1.Size = corner_size_w
-                objects.corner_1.Position = dim2(0, 0, 0, 0)
-                objects.corner_2.Size = corner_size_h
-                objects.corner_2.Position = dim2(0, 0, 0, 0)
-
-                objects.corner_3.Size = corner_size_w
-                objects.corner_3.Position = dim2(1, 0, 0, 0)
-                objects.corner_3.AnchorPoint = vec2(1, 0)
-                objects.corner_4.Size = corner_size_h
-                objects.corner_4.Position = dim2(1, 0, 0, 0)
-                objects.corner_4.AnchorPoint = vec2(1, 0)
-
-                objects.corner_5.Size = corner_size_w
-                objects.corner_5.Position = dim2(0, 0, 1, 0)
-                objects.corner_5.AnchorPoint = vec2(0, 1)
-                objects.corner_6.Size = corner_size_h
-                objects.corner_6.Position = dim2(0, 0, 1, 0)
-                objects.corner_6.AnchorPoint = vec2(0, 1)
-
-                objects.corner_7.Size = corner_size_w
-                objects.corner_7.Position = dim2(1, 0, 1, 0)
-                objects.corner_7.AnchorPoint = vec2(1, 1)
-                objects.corner_8.Size = corner_size_h
-                objects.corner_8.Position = dim2(1, 0, 1, 0)
-                objects.corner_8.AnchorPoint = vec2(1, 1)
-
-                for i = 1, 8 do
-                    objects["corner_inner_"..i].BackgroundColor3 = boxColor
-                    objects["corner_inner_"..i].BackgroundTransparency = boxTransparency
-                    objects["corner_"..i].BackgroundTransparency = boxTransparency
-                end
-            end
-            
-            if path.box3d then 
-                for _, line in ipairs(path.box3d) do 
-                    line.Color = boxColor 
-                    line.Transparency = 1 - boxTransparency
-                end 
-            end
-
-            objects["highlight"].Enabled = highlight_enabled
-            objects["highlight"].FillColor = flags["Highlight_FillColor"].Color
-            objects["highlight"].FillTransparency = flags["Highlight_FillColor"].Transparency or 0.5
-            objects["highlight"].OutlineColor = flags["Highlight_OutlineColor"].Color
-            objects["highlight"].OutlineTransparency = flags["Highlight_OutlineColor"].Transparency or 0
-
-            objects[ "healthbar_holder" ].Parent = flags[ "Healthbar" ] and objects[ "holder" ] or esp.cache
-            objects[ "weapon" ].Parent = flags[ "Weapon" ] and objects[ "holder" ] or esp.cache
-            objects[ "distance" ].Parent = flags[ "Distance" ] and objects[ "holder" ] or esp.cache
-            
-            objects[ "weapon" ].TextColor3 = flags["Weapon_Color"].Color
-            objects[ "weapon" ].TextTransparency = flags["Weapon_Color"].Transparency or 0
-            objects[ "distance" ].TextColor3 = flags["Distance_Color"].Color
-            objects[ "distance" ].TextTransparency = flags["Distance_Color"].Transparency or 0
-        end
-    end
-
-    local corners_template = {
-        vec3(1, 1, 1), vec3(-1, 1, 1), vec3(-1, -1, 1), vec3(1, -1, 1),
-        vec3(1, 1, -1), vec3(-1, 1, -1), vec3(-1, -1, -1), vec3(1, -1, -1)
+        boxLines = {}
     }
-    local edges = { {1, 2}, {2, 3}, {3, 4}, {4, 1}, {5, 6}, {6, 7}, {7, 8}, {8, 5}, {1, 5}, {2, 6}, {3, 7}, {4, 8} }
-    local BOX_SIZE_VEC = vec3(3.2, 5.0, 2.2) / 2
-    local BOX_OFFSET = cfr(0, 0, 0)
 
-    esp.connection = RunService.RenderStepped:Connect(function()
-        local flags = getgenv().esp_flags
-        local espEnabled = flags["Enabled"]
-        local showBoxes = flags["Boxes"]
-        local is3D = flags["Box_Type"] == "3D"
-        local showDistance = flags["Distance"]
-        local showWeapon = flags["Weapon"]
+    local highlight = Instance.new("Highlight")
+    highlight.Enabled = false
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = CoreGui
 
-        for _, player in ipairs(Players:GetPlayers()) do 
-            local data = esp.players[player.Name]
-            if not data then continue end 
-            local info = data.info
-            local character = info.character
-            local humanoid = info.humanoid 
-            if not (character and humanoid and humanoid.RootPart) then 
-                if data.objects.holder.Visible then data.objects.holder.Visible = false end
-                continue 
-            end 
+    esp.highlight = highlight
 
-            local objects = data.objects 
-            local last = data.last_state
+    cache[player] = esp
+    cache[player]["skeletonlines"] = {}
 
-            if not espEnabled then
-                if last.visible then 
-                    objects.holder.Visible = false
-                    objects.highlight.Enabled = false
-                    if data.box3d then for i=1,12 do data.box3d[i].Visible = false end end
-                    last.visible = false
-                end
-                continue
-            end
+end
 
-            local box_size, box_pos, on_screen, distance = esp:box_solve(humanoid.RootPart)
-            local holder = objects.holder
+local function isPlayerBehindWall(player)
 
-            if last.visible ~= on_screen then
-                holder.Visible = on_screen
-                last.visible = on_screen
-            end
+    local character = player.Character
+    if not character then return false end
 
-            if not on_screen then 
-                if data.box3d then for i=1,12 do data.box3d[i].Visible = false end end
-                continue 
-            end 
-            
-            if last.pos ~= box_pos then
-                holder.Position = dim_offset(box_pos.X, box_pos.Y)
-                last.pos = box_pos
-            end
-            if last.size ~= box_size then
-                holder.Size = dim_offset(box_size.X, box_size.Y)
-                last.size = box_size
-            end
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return false end
 
-            if showDistance then
-                local dist_int = math_round(distance)
-                if last.distance ~= dist_int then
-                    objects.distance.Text = tostring(dist_int) .. "st"
-                    last.distance = dist_int
-                end
-            end
+    local ray = Ray.new(camera.CFrame.Position,(rootPart.Position-camera.CFrame.Position).Unit*(rootPart.Position-camera.CFrame.Position).Magnitude)
 
-            if showWeapon then
-                local weapon = "None"
-                local tool = character:FindFirstChildOfClass("Tool")
-                if tool then weapon = tool.Name end
-                if last.weapon ~= weapon then
-                    objects.weapon.Text = weapon
-                    last.weapon = weapon
-                end
-            end
+    local hit = workspace:FindPartOnRayWithIgnoreList(ray,{localPlayer.Character,character})
 
-            local hp = humanoid.Health
-            if last.hp ~= hp then
-                local max_hp = humanoid.MaxHealth
-                local scale = math_clamp(hp/max_hp, 0, 1)
-                objects.healthbar.Size = dim2(1, -2, scale, -2)
-                objects.healthbar.Position = dim2(0, 1, 1-scale, 1)
-                
-                local c1 = flags["Health_Low"].Color
-                local c2 = flags["Health_High"].Color
-                objects.healthbar.BackgroundColor3 = c1:Lerp(c2, scale)
-                last.hp = hp
-            end
+    return hit and hit:IsA("Part")
 
-            -- 3D Box Rendering (Robust Segments)
-            if showBoxes and is3D and data.box3d then
-                local cframe = humanoid.RootPart.CFrame * BOX_OFFSET
-                local screen_pts = {}
-                local valid_pt_count = 0
+end
 
-                for i = 1, 8 do
-                    local world_pos = (cframe * cfr(corners_template[i] * BOX_SIZE_VEC)).Position
-                    local p, on_viewport = Camera:WorldToViewportPoint(world_pos)
-                    if p.Z > 0 then
-                        screen_pts[i] = vec2(p.X, p.Y)
-                        valid_pt_count += 1
+local function removeEsp(player)
+
+    local esp = cache[player]
+    if not esp then return end
+
+    for _,drawing in pairs(esp) do
+        if typeof(drawing) == "table" then continue end
+        if drawing.Remove then
+            drawing:Remove()
+        end
+    end
+
+    if esp.highlight then
+        esp.highlight:Destroy()
+    end
+
+    cache[player] = nil
+
+end
+
+local function updateEsp()
+
+    for player,esp in pairs(cache) do
+
+        local character = player.Character
+        local team = player.Team
+
+        if character and (not ESP_SETTINGS.Teamcheck or (team and team ~= localPlayer.Team)) then
+
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            local head = character:FindFirstChild("Head")
+            local humanoid = character:FindFirstChild("Humanoid")
+
+            local isBehindWall = ESP_SETTINGS.WallCheck and isPlayerBehindWall(player)
+
+            local shouldShow = not isBehindWall and ESP_SETTINGS.Enabled
+
+            if rootPart and head and humanoid and shouldShow then
+
+                local position,onScreen = camera:WorldToViewportPoint(rootPart.Position)
+
+                if onScreen then
+
+                    if ESP_SETTINGS.ShowHighlight then
+
+                        esp.highlight.Adornee = character
+                        esp.highlight.Enabled = true
+
+                        esp.highlight.FillColor = ESP_SETTINGS.HighlightFillColor
+                        esp.highlight.OutlineColor = ESP_SETTINGS.HighlightOutlineColor
+
+                        esp.highlight.FillTransparency = ESP_SETTINGS.HighlightFillTransparency
+                        esp.highlight.OutlineTransparency = ESP_SETTINGS.HighlightOutlineTransparency
+
+                    else
+                        esp.highlight.Enabled = false
                     end
-                end
 
-                if valid_pt_count > 0 then
-                    for i = 1, 12 do
-                        local edge = edges[i]
-                        local p1, p2 = screen_pts[edge[1]], screen_pts[edge[2]]
-                        local line = data.box3d[i]
-                        if p1 and p2 then
-                            line.From = p1
-                            line.To = p2
-                            line.Visible = true
+                    local hrp2D = camera:WorldToViewportPoint(rootPart.Position)
+
+                    local charSize = (
+                        camera:WorldToViewportPoint(rootPart.Position-Vector3.new(0,3,0)).Y
+                        -
+                        camera:WorldToViewportPoint(rootPart.Position+Vector3.new(0,2.6,0)).Y
+                    )/2
+
+                    local boxSize = Vector2.new(
+                        math.floor(charSize*1.8),
+                        math.floor(charSize*1.9)
+                    )
+
+                    local boxPosition = Vector2.new(
+                        math.floor(hrp2D.X-charSize*1.8/2),
+                        math.floor(hrp2D.Y-charSize*1.6/2)
+                    )
+
+                    if ESP_SETTINGS.ShowName then
+
+                        esp.name.Visible = true
+                        esp.name.Text = string.lower(player.Name)
+
+                        esp.name.Position = Vector2.new(
+                            boxSize.X/2+boxPosition.X,
+                            boxPosition.Y-16
+                        )
+
+                        esp.name.Color = ESP_SETTINGS.NameColor
+
+                    else
+                        esp.name.Visible = false
+                    end
+
+                    if ESP_SETTINGS.ShowBox then
+
+                        esp.boxOutline.Size = boxSize
+                        esp.boxOutline.Position = boxPosition
+
+                        esp.box.Size = boxSize
+                        esp.box.Position = boxPosition
+
+                        esp.box.Color = ESP_SETTINGS.BoxColor
+
+                        esp.box.Visible = true
+                        esp.boxOutline.Visible = true
+
+                    else
+
+                        esp.box.Visible = false
+                        esp.boxOutline.Visible = false
+
+                    end
+
+                    if ESP_SETTINGS.ShowHealth then
+
+                        esp.healthOutline.Visible = true
+                        esp.health.Visible = true
+
+                        local healthPercentage = humanoid.Health/humanoid.MaxHealth
+
+                        esp.healthOutline.From = Vector2.new(
+                            boxPosition.X-6,
+                            boxPosition.Y+boxSize.Y
+                        )
+
+                        esp.healthOutline.To = Vector2.new(
+                            esp.healthOutline.From.X,
+                            esp.healthOutline.From.Y-boxSize.Y
+                        )
+
+                        esp.health.From = Vector2.new(
+                            boxPosition.X-5,
+                            boxPosition.Y+boxSize.Y
+                        )
+
+                        esp.health.To = Vector2.new(
+                            esp.health.From.X,
+                            esp.health.From.Y-healthPercentage*boxSize.Y
+                        )
+
+                        esp.health.Color = ESP_SETTINGS.HealthLowColor:Lerp(
+                            ESP_SETTINGS.HealthHighColor,
+                            healthPercentage
+                        )
+
+                    else
+
+                        esp.healthOutline.Visible = false
+                        esp.health.Visible = false
+
+                    end
+
+                    if ESP_SETTINGS.ShowDistance then
+
+                        local distance = (camera.CFrame.Position-rootPart.Position).Magnitude
+
+                        esp.distance.Text = string.format("%.1f studs",distance)
+
+                        esp.distance.Position = Vector2.new(
+                            boxPosition.X+boxSize.X/2,
+                            boxPosition.Y+boxSize.Y+5
+                        )
+
+                        esp.distance.Visible = true
+
+                    else
+                        esp.distance.Visible = false
+                    end
+
+                    if ESP_SETTINGS.ShowTracer then
+
+                        local tracerY
+
+                        if ESP_SETTINGS.TracerPosition == "Top" then
+                            tracerY = 0
+                        elseif ESP_SETTINGS.TracerPosition == "Middle" then
+                            tracerY = camera.ViewportSize.Y/2
                         else
-                            line.Visible = false
+                            tracerY = camera.ViewportSize.Y
+                        end
+
+                        esp.tracer.Visible = true
+
+                        esp.tracer.From = Vector2.new(
+                            camera.ViewportSize.X/2,
+                            tracerY
+                        )
+
+                        esp.tracer.To = Vector2.new(hrp2D.X,hrp2D.Y)
+
+                    else
+                        esp.tracer.Visible = false
+                    end
+
+                else
+
+                    for _,drawing in pairs(esp) do
+                        if drawing.Visible then
+                            drawing.Visible = false
                         end
                     end
-                else
-                    for i = 1, 12 do data.box3d[i].Visible = false end
+
+                    esp.highlight.Enabled = false
+
                 end
+
             else
-                if data.box3d and data.box3d[1].Visible then
-                    for i = 1, 12 do data.box3d[i].Visible = false end
+
+                for _,drawing in pairs(esp) do
+                    if drawing.Visible then
+                        drawing.Visible = false
+                    end
+                end
+
+                esp.highlight.Enabled = false
+
+            end
+
+        else
+
+            for _,drawing in pairs(esp) do
+                if drawing.Visible then
+                    drawing.Visible = false
                 end
             end
-        end
-    end)
 
-    function esp:unload() 
-        for _, player in ipairs(Players:GetPlayers()) do esp:remove_object(player) end 
-        if esp.connection then esp.connection:Disconnect() end
-        if esp.player_added then esp.player_added:Disconnect() end
-        if esp.player_removed then esp.player_removed:Disconnect() end
-        esp.cache:Destroy() 
-        esp.screengui:Destroy()
-        getgenv().esp_lib = nil
-    end 
+            esp.highlight.Enabled = false
+
+        end
+    end
 end
 
-for _,v in ipairs(Players:GetPlayers()) do if v ~= LocalPlayer then esp:create_object(v) end end 
-esp.player_added = Players.PlayerAdded:Connect(function(v) esp:create_object(v) end)
-esp.player_removed = Players.PlayerRemoving:Connect(function(v) esp:remove_object(v) end)
+for _,player in ipairs(Players:GetPlayers()) do
+    if player ~= localPlayer then
+        createEsp(player)
+    end
+end
 
-getgenv().esp_lib = esp
-return esp
+Players.PlayerAdded:Connect(function(player)
+
+    if player ~= localPlayer then
+        createEsp(player)
+    end
+
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+
+    removeEsp(player)
+
+end)
+
+RunService.RenderStepped:Connect(updateEsp)
+
+return ESP_SETTINGS
