@@ -4986,21 +4986,19 @@
     -- Notification Library
         local Notifications = Library.Notifications
 
-        function Library:FadeNotification(path, is_fading) -- Horrendous dogshit code from like 500 years ago
+        function Library:FadeNotification(path, is_fading)
             local fading = is_fading and 1 or 0 
 
             for _, instance in path:GetDescendants() do 
-                if not instance:IsA("GuiObject") then 
-                    if instance:IsA("UIStroke") then
-                        Library:Tween(instance, {Transparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                    end
-        
+                if not instance:IsA("GuiObject") and not instance:IsA("UIStroke") then 
                     continue
                 end 
         
                 if instance:IsA("TextLabel") then
                     Library:Tween(instance, {TextTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                elseif instance:IsA("Frame") then
+                elseif instance:IsA("UIStroke") then
+                    Library:Tween(instance, {Transparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
+                elseif instance:IsA("Frame") and instance.BackgroundTransparency < 1 then
                     Library:Tween(instance, {BackgroundTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
                 end
             end
@@ -5065,10 +5063,10 @@
                     Parent = Items.Holder;
                     Name = "\0";
                     BackgroundTransparency = 1;
-                    Size = dim2(0, 0, 0, 25);
+                    Size = dim2(0, 260, 0, 25);
                     BorderColor3 = rgb(0, 0, 0);
                     BorderSizePixel = 0;
-                    AutomaticSize = Enum.AutomaticSize.XY;
+                    AutomaticSize = Enum.AutomaticSize.Y;
                     BackgroundColor3 = themes.preset.outline
                 });	Library:Themify(Items.Notification, "outline", "BackgroundColor3")
 
@@ -5117,14 +5115,14 @@
                     Name = "\0";
                     TextTransparency = 1;
                     AutomaticSize = Enum.AutomaticSize.Y;
-                    Size = dim2(0, 250, 0, 0); -- Fixed width for wrapping
+                    Size = dim2(1, 0, 0, 0);
                     TextWrapped = true;
-                    AnchorPoint = vec2(0, 0.5);
                     BorderSizePixel = 0;
                     BackgroundTransparency = 1;
-                    Position = dim2(0, 0, 0.5, 0);
                     BorderColor3 = rgb(0, 0, 0);
                     ZIndex = 3;
+                    PaddingLeft = UDim.new(0, 10);
+                    PaddingRight = UDim.new(0, 10);
                     TextSize = 12;
                     BackgroundColor3 = rgb(255, 255, 255)
                 });
@@ -5136,53 +5134,11 @@
 
                 Library:Create( "UIPadding" , {
                     Parent = Items.Title;
-                    PaddingRight = dim(0, 7);
-                    PaddingLeft = dim(0, 9)
-                });
-
-                Items.Content = Library:Create( "TextLabel" , {
-                    FontFace = Fonts[themes.preset.font];
-                    Parent = Items.Notification;
-                    TextColor3 = rgb(200, 200, 200);
-                    TextStrokeColor3 = rgb(255, 255, 255);
-                    Text = "";
-                    Name = "\0";
-                    TextTransparency = 1;
-                    AutomaticSize = Enum.AutomaticSize.Y;
-                    Size = dim2(0, 250, 0, 0);
-                    TextWrapped = true;
-                    AnchorPoint = vec2(0, 0);
-                    BorderSizePixel = 0;
-                    BackgroundTransparency = 1;
-                    Position = dim2(0, 0, 0, 0); -- Will be adjusted by layout or manually
-                    BorderColor3 = rgb(0, 0, 0);
-                    ZIndex = 3;
-                    TextSize = 13;
-                    BackgroundColor3 = rgb(255, 255, 255);
-                    TextXAlignment = Enum.TextXAlignment.Left;
-                });
-
-                Library:Create( "UIStroke" , {
-                    Parent = Items.Content;
-                    LineJoinMode = Enum.LineJoinMode.Miter
-                });
-
-                Library:Create( "UIPadding" , {
-                    Parent = Items.Content;
                     PaddingRight = dim(0, 10);
                     PaddingLeft = dim(0, 10);
+                    PaddingTop = dim(0, 5);
                     PaddingBottom = dim(0, 5);
                 });
-
-                Library:Create("UIListLayout", {
-                    Parent = Items.Notification,
-                    Padding = dim(0, 2),
-                    SortOrder = Enum.SortOrder.LayoutOrder,
-                    FillDirection = Enum.FillDirection.Vertical
-                })
-
-                Items.Title.LayoutOrder = 1
-                Items.Content.LayoutOrder = 2
 
                 Items.Inline = Library:Create( "Frame" , {
                     Parent = Items.Notification;
@@ -5232,6 +5188,16 @@
                     task.wait(Cfg.Lifetime)
                     Cfg.DestroyNotif()
                 end)            
+
+                function Cfg.Set(text)
+                    Items.Title.Text = text
+                end
+
+                function Cfg.DestroyNotif()
+                    Library:FadeNotification(Items.Notification, true)
+                    task.wait(1)
+                    Items.Holder:Destroy()
+                end
             end 
 
             return setmetatable(Cfg, Library)
