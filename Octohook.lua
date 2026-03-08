@@ -2288,15 +2288,22 @@
                         BackgroundColor3 = themes.preset.inline
                     });	Library:Themify(Items.InlineThird, "inline", "BackgroundColor3")
 
-                    Items.PageHolder = Library:Create( "Frame" , {
+                    Items.PageHolder = Library:Create( "ScrollingFrame" , {
                         Parent = Items.InlineThird;
                         Name = "\0";
                         Position = dim2(0, 1, 0, 1);
                         BorderColor3 = rgb(0, 0, 0);
                         Size = dim2(1, -2, 1, -2);
                         BorderSizePixel = 0;
-                        BackgroundColor3 = rgb(28, 28, 33)
-                    });
+                        BackgroundColor3 = rgb(28, 28, 33);
+                        ScrollBarThickness = 2;
+                        ScrollBarImageColor3 = themes.preset.accent;
+                        AutomaticCanvasSize = Enum.AutomaticSize.Y;
+                        CanvasSize = dim2(0, 0, 0, 0);
+                        ScrollingDirection = Enum.ScrollingDirection.Y;
+                        ScrollBarImageTransparency = 0;
+                        BackgroundTransparency = 1; -- Transparency 1 so it doesn't overlap Page's visuals
+                    }); Library:Themify(Items.PageHolder, "accent", "ScrollBarImageColor3")
 
                     Items.Title = Library:Create( "TextLabel" , {
                         FontFace = Fonts[themes.preset.font];
