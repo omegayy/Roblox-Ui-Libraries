@@ -4998,7 +4998,7 @@
                     Library:Tween(instance, {TextTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
                 elseif instance:IsA("UIStroke") then
                     Library:Tween(instance, {Transparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
-                elseif instance:IsA("Frame") and instance.BackgroundTransparency < 1 then
+                elseif instance:IsA("Frame") then
                     Library:Tween(instance, {BackgroundTransparency = fading}, TweenInfo.new(1, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut, 0, false, 0))
                 end
             end
@@ -5175,8 +5175,11 @@
             Items.Holder.Position = dim_offset(20, Offset)
 
             function Cfg.Set(text)
-                Items.Content.Text = tostring(text)
-                Items.Content.Visible = (text ~= "")
+                Items.Title.Text = text
+                if Items.Content then -- Assuming Items.Content might exist for some notifications
+                    Items.Content.Text = tostring(text)
+                    Items.Content.Visible = (text ~= "")
+                end
                 
                 -- Update layout
                 task.wait()
@@ -5188,18 +5191,11 @@
                     task.wait(Cfg.Lifetime)
                     Cfg.DestroyNotif()
                 end)            
-
-                function Cfg.Set(text)
-                    Items.Title.Text = text
-                end
-
-                function Cfg.DestroyNotif()
-                    Library:FadeNotification(Items.Notification, true)
-                    task.wait(1)
-                    Items.Holder:Destroy()
-                end
             end 
 
+            if properties.Content or properties.Text then
+                Cfg.Set(properties.Content or properties.Text)
+            end
             return setmetatable(Cfg, Library)
         end 
 
@@ -6132,7 +6128,7 @@
                             Parent = Items.ElementHolder;
                             TextColor3 = rgb(145, 145, 145);
                             TextStrokeColor3 = rgb(255, 255, 255);
-                            Text = Config.Name;
+                            Text = props.Name or Config.Name;
                             Name = "\0";
                             AutomaticSize = Enum.AutomaticSize.XY;
                             Position = dim2(0, 1, 0, 0);
@@ -6346,7 +6342,7 @@
                             BorderColor3 = rgb(0, 0, 0);
                             Parent = Esp.Cache;
                             Name = "Left";
-                            Text = Config.Name;
+                            Text = props.Name or Config.Name;
                             BackgroundTransparency = 1;
                             Size = dim2(1, 0, 0, 0);
                             BorderSizePixel = 0;
@@ -6354,7 +6350,7 @@
                             TextSize = 9;
                             TextXAlignment = Enum.TextXAlignment.Left;
                             BackgroundColor3 = rgb(255, 255, 255)
-                        });	Library:Themify(Elements.Text, "unselected", "BackgroundColor3")
+                        });	Library:Themify(Elements.Name, "unselected", "BackgroundColor3")
 
                         Elements.Stroke = Library:Create( "UIStroke" , {
                             Parent = Elements.Name;
@@ -6467,7 +6463,7 @@
                             Parent = Items.ElementHolder;
                             TextColor3 = rgb(145, 145, 145);
                             TextStrokeColor3 = rgb(255, 255, 255);
-                            Text = Config.Name;
+                            Text = props.Name or Config.Name;
                             Name = "\0";
                             AutomaticSize = Enum.AutomaticSize.XY;
                             Position = dim2(0, 1, 0, 0);
@@ -7394,9 +7390,12 @@
                 end 
             -- 
 
-            self.Section:Toggle({Name = Cfg.Name, Callback = function(bool)
-                Options.Enabled = bool
-            end, Flag = Cfg.Name .. "_GLOBAL_ENABLED"})
+            if not properties.NoToggle then 
+                self.Section:Toggle({Name = Cfg.Name, Callback = function(bool)
+                    Options.Enabled = bool
+                end, Flag = Cfg.Name .. "_GLOBAL_ENABLED"})
+            end 
+
 
             self.Section:Slider({
                 Name = "Max Render Distance", 
@@ -8087,14 +8086,14 @@
             Data.RefreshChams = function()
                 local Character = Data.Info.Character
                 
-                local Enabled = Flags["Players_CHAMS"]
-                local FillSettings = Flags["Players_FILL_CHAMS"]
-                local OutlineSettings = Flags["Players_OUTLINE_CHAMS"]
+                local Enabled = Flags["Players_CHAMS"] or false
+                local FillSettings = Flags["Players_FILL_CHAMS"] or { Color = Color3.fromRGB(255, 255, 255), Transparency = 0.5 }
+                local OutlineSettings = Flags["Players_OUTLINE_CHAMS"] or { Color = Color3.fromRGB(255, 255, 255), Transparency = 0 }
 
                 if not Data.Highlight then 
                     Data.Highlight = Esp:Create( "Highlight", {
                         FillColor = FillSettings.Color;
-                        Enabled = Flags["Players_CHAMS"];
+                        Enabled = Enabled;
                         OutlineTransparency = OutlineSettings.Transparency;
                         Adornee = Character;
                         FillTransparency = FillSettings.Transparency;
